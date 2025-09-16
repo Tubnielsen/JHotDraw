@@ -29,6 +29,6 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
       - name: Run Maven verify
-        run: mvn --batch-mode --update-snapshots --settings .maven-settings.xml verify
+        run: mvn --batch-mode --update-snapshots --settings .settings.xml verify
 
 

@@ -85,6 +85,54 @@ public class ImageTool extends CreationTool {
             return;
         }
         final File file;
+        file = chooseImageFile(v);
+        if (file != null) {
+            final ImageHolderFigure loaderFigure = ((ImageHolderFigure) prototype.clone());
+            loadImageAsync(loaderFigure, file, v);
+        } else {
+            //getDrawing().remove(createdFigure);
+            if (isToolDoneAfterCreation()) {
+                fireToolDone();
+            }
+        }
+    }
+
+    private void loadImageAsync(ImageHolderFigure loaderFigure, File file, DrawingView v) {
+        new SwingWorker() {
+            @Override
+            protected Object doInBackground() throws Exception {
+                loaderFigure.loadImage(file);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();  //will throw an ExecutionException if in doInBackground something went wrong.
+                    if (createdFigure == null) {
+                        ((ImageHolderFigure) prototype).setImage(loaderFigure.getImageData(), loaderFigure.getBufferedImage());
+                    } else {
+                        ((ImageHolderFigure) createdFigure).setImage(loaderFigure.getImageData(), loaderFigure.getBufferedImage());
+                    }
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(v.getComponent(),
+                            ex.getMessage(),
+                            null,
+                            JOptionPane.ERROR_MESSAGE);
+                } catch (InterruptedException | ExecutionException ex) {
+                    JOptionPane.showMessageDialog(v.getComponent(),
+                            ex.getMessage(),
+                            null,
+                            JOptionPane.ERROR_MESSAGE);
+                    getDrawing().remove(createdFigure);
+                    fireToolDone();
+                }
+            }
+        }.execute();
+    }
+
+    private File chooseImageFile(DrawingView v) {
+        final File file;
         if (useFileDialog) {
             getFileDialog().setVisible(true);
             if (getFileDialog().getFile() != null) {
@@ -99,45 +147,7 @@ public class ImageTool extends CreationTool {
                 file = null;
             }
         }
-        if (file != null) {
-            final ImageHolderFigure loaderFigure = ((ImageHolderFigure) prototype.clone());
-            new SwingWorker() {
-                @Override
-                protected Object doInBackground() throws Exception {
-                    loaderFigure.loadImage(file);
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        get();  //will throw an ExecutionException if in doInBackground something went wrong.
-                        if (createdFigure == null) {
-                            ((ImageHolderFigure) prototype).setImage(loaderFigure.getImageData(), loaderFigure.getBufferedImage());
-                        } else {
-                            ((ImageHolderFigure) createdFigure).setImage(loaderFigure.getImageData(), loaderFigure.getBufferedImage());
-                        }
-                    } catch (IOException ex) {
-                        JOptionPane.showMessageDialog(v.getComponent(),
-                                ex.getMessage(),
-                                null,
-                                JOptionPane.ERROR_MESSAGE);
-                    } catch (InterruptedException | ExecutionException ex) {
-                        JOptionPane.showMessageDialog(v.getComponent(),
-                            ex.getMessage(),
-                            null,
-                            JOptionPane.ERROR_MESSAGE);
-                        getDrawing().remove(createdFigure);
-                        fireToolDone();
-                    }
-                }
-            }.execute();
-        } else {
-            //getDrawing().remove(createdFigure);
-            if (isToolDoneAfterCreation()) {
-                fireToolDone();
-            }
-        }
+        return file;
     }
 
     private JFileChooser getFileChooser() {

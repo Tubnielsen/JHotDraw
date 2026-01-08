@@ -7,9 +7,9 @@
  */
 package org.jhotdraw.undo;
 
-import java.awt.event.*;
 import java.beans.*;
 import java.util.*;
+import java.util.logging.Logger;
 import javax.swing.*;
 import javax.swing.undo.*;
 import org.jhotdraw.util.*;
@@ -21,7 +21,7 @@ import org.jhotdraw.util.*;
  * @author Werner Randelshofer
  * @version $Id$
  */
-public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManager {
+public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManager
 
     private static final long serialVersionUID = 1L;
     protected PropertyChangeSupport propertySupport = new PropertyChangeSupport(this);
@@ -62,65 +62,10 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
         }
     };
 
-    /**
-     * Undo Action for use in a menu bar.
-     */
-    private class UndoAction
-            extends AbstractAction {
+    private static final Logger logger = Logger.getLogger(UndoRedoManager.class.getName());
 
-        private static final long serialVersionUID = 1L;
 
-        public UndoAction() {
-            labels.configureAction(this, "edit.undo");
-            setEnabled(false);
-        }
-
-        /**
-         * Invoked when an action occurs.
-         */
-        @Override
-        public void actionPerformed(ActionEvent evt) {
-            try {
-                undo();
-            } catch (CannotUndoException e) {
-                System.err.println("Cannot undo: " + e);
-                e.printStackTrace();
-            }
-        }
-    }
-
-    /**
-     * Redo Action for use in a menu bar.
-     */
-    private class RedoAction
-            extends AbstractAction {
-
-        private static final long serialVersionUID = 1L;
-
-        public RedoAction() {
-            labels.configureAction(this, "edit.redo");
-            setEnabled(false);
-        }
-
-        /**
-         * Invoked when an action occurs.
-         */
-        @Override
-        public void actionPerformed(ActionEvent evt) {
-            try {
-                redo();
-            } catch (CannotRedoException e) {
-                System.out.println("Cannot redo: " + e);
-            }
-        }
-    }
-    /**
-     * The undo action instance.
-     */
     private UndoAction undoAction;
-    /**
-     * The redo action instance.
-     */
     private RedoAction redoAction;
 
     public static ResourceBundleUtil getLabels() {
@@ -130,16 +75,17 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
         return labels;
     }
 
+
     /**
      * Creates new UndoRedoManager
      */
     public UndoRedoManager() {
         getLabels();
-        undoAction = new UndoAction();
-        redoAction = new RedoAction();
+        undoAction = new UndoAction(this);
+        redoAction = new RedoAction(this);
     }
 
-    public void setLocale(Locale l) {
+    public static void setLocale(Locale l) {
         labels = ResourceBundleUtil.getBundle("org.jhotdraw.undo.Labels", l);
     }
 
@@ -147,7 +93,7 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
      * Discards all edits.
      */
     @Override
-    public void discardAllEdits() {
+    public synchronized void discardAllEdits() {
         super.discardAllEdits();
         updateActions();
         setHasSignificantEdits(false);
@@ -186,9 +132,9 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
      * @see CompoundEdit#addEdit
      */
     @Override
-    public boolean addEdit(UndoableEdit anEdit) {
+    public synchronized boolean addEdit(UndoableEdit anEdit) {
         if (DEBUG) {
-            System.out.println("UndoRedoManager@" + hashCode() + ".add " + anEdit);
+            logger.info(() -> "UndoRedoManager@" + hashCode() + ".add " + anEdit);
         }
         if (undoOrRedoInProgress) {
             anEdit.die();
@@ -221,30 +167,56 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
      * and of the RedoAction.
      */
     private void updateActions() {
+        logDebugInfo();
+
+        assert undoAction != null : "undoAction should exist";
+        assert redoAction != null : "redoAction should exist";
+
+        updateAction(
+                undoAction, canUndo(),
+                getUndoPresentationName(),
+                labels.getString("edit.undo.text")
+        );
+
+        updateAction(
+                redoAction, canRedo(),
+                getRedoPresentationName(),
+                labels.getString("edit.redo.text")
+        );
+
+        assert undoAction.isEnabled() == canUndo() : "undoAction state mismatch after updateActions";
+        assert redoAction.isEnabled() == canRedo() : "redoAction state mismatch after updateActions";
+    }
+
+
+    private void updateAction(Action action, boolean canPerform, String enabledLabel, String disabledLabel) {
+        assert action != null : "Action should never be null";
+
+        action.setEnabled(canPerform);
+
         String label;
-        if (DEBUG) {
-            System.out.println("UndoRedoManager@" + hashCode() + ".updateActions "
-                    + editToBeUndone()
-                    + " canUndo=" + canUndo() + " canRedo=" + canRedo());
-        }
-        if (canUndo()) {
-            undoAction.setEnabled(true);
-            label = getUndoPresentationName();
+        if (canPerform && enabledLabel != null) {
+            label = enabledLabel;
         } else {
-            undoAction.setEnabled(false);
-            label = labels.getString("edit.undo.text");
+            label = disabledLabel;
         }
-        undoAction.putValue(Action.NAME, label);
-        undoAction.putValue(Action.SHORT_DESCRIPTION, label);
-        if (canRedo()) {
-            redoAction.setEnabled(true);
-            label = getRedoPresentationName();
-        } else {
-            redoAction.setEnabled(false);
-            label = labels.getString("edit.redo.text");
-        }
-        redoAction.putValue(Action.NAME, label);
-        redoAction.putValue(Action.SHORT_DESCRIPTION, label);
+
+        assert label != null : "Label should not be null";
+
+        action.putValue(Action.NAME, label);
+        action.putValue(Action.SHORT_DESCRIPTION, label);
+
+        assert action.isEnabled() == canPerform : "Action enabled state mismatch";
+    }
+
+
+    private void logDebugInfo() {
+        if (!DEBUG) return;
+        logger.info(() ->
+                "UndoRedoManager@" + hashCode() + ".updateActions "
+                        + editToBeUndone() + " canUndo="
+                        + canUndo() + " canRedo=" + canRedo()
+        );
     }
 
     /**
@@ -253,15 +225,8 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
      * while undo is in progress.
      */
     @Override
-    public void undo()
-            throws CannotUndoException {
-        undoOrRedoInProgress = true;
-        try {
-            super.undo();
-        } finally {
-            undoOrRedoInProgress = false;
-            updateActions();
-        }
+    public void undo() throws CannotUndoException {
+        performUndoOrRedo(super::undo);
     }
 
     /**
@@ -270,15 +235,8 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
      * while redo is in progress.
      */
     @Override
-    public void redo()
-            throws CannotUndoException {
-        undoOrRedoInProgress = true;
-        try {
-            super.redo();
-        } finally {
-            undoOrRedoInProgress = false;
-            updateActions();
-        }
+    public void redo() throws CannotUndoException {
+        performUndoOrRedo(super::redo);
     }
 
     /**
@@ -289,14 +247,22 @@ public class UndoRedoManager extends UndoManager { //javax.swing.undo.UndoManage
     @Override
     public void undoOrRedo()
             throws CannotUndoException, CannotRedoException {
+        performUndoOrRedo(super::undoOrRedo);
+    }
+
+    private void performUndoOrRedo(Runnable operation) {
+        assert operation != null : "Operation must not be null";
+
         undoOrRedoInProgress = true;
         try {
-            super.undoOrRedo();
+            operation.run();
         } finally {
             undoOrRedoInProgress = false;
             updateActions();
+            assert !undoOrRedoInProgress : "undoOrRedoInProgress should be false after updateActions";
         }
     }
+
 
     public void addPropertyChangeListener(PropertyChangeListener listener) {
         propertySupport.addPropertyChangeListener(listener);

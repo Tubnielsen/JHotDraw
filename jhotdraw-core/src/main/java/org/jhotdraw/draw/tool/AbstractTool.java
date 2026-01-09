@@ -346,7 +346,7 @@ public abstract class AbstractTool extends AbstractBean implements Tool {
     /**
      * Notify all listenerList that have registered interest for notification on this event type.
      */
-    protected void fireToolDone() {
+    public void fireToolDone() {
         ToolEvent event = null;
         // Notify all listeners that have registered interest for
         // Guaranteed to return a non-null array

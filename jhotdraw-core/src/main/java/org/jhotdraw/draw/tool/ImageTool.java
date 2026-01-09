@@ -1,10 +1,3 @@
-/*
- * @(#)ImageTool.java
- *
- * Copyright (c) 1996-2010 The authors and contributors of JHotDraw.
- * You may not use, copy or modify this file, except in compliance with the
- * accompanying license terms.
- */
 package org.jhotdraw.draw.tool;
 
 import java.awt.*;
@@ -17,32 +10,6 @@ import org.jhotdraw.draw.DrawingEditor;
 import org.jhotdraw.draw.DrawingView;
 import org.jhotdraw.draw.figure.ImageHolderFigure;
 
-/**
- * A tool to create new figures that implement the ImageHolderFigure
- * interface, such as ImageFigure. The figure to be created is specified by a
- * prototype.
- * <p>
- * Immediately, after the ImageTool has been activated, it opens a JFileChooser,
- * letting the user specify an image file. The the user then performs
- * the following mouse gesture:
- * <ol>
- * <li>Press the mouse button and drag the mouse over the DrawingView.
- * This defines the bounds of the created figure.</li>
- * </ol>
- *
- * <hr>
- * <b>Design Patterns</b>
- *
- * <p>
- * <em>Prototype</em><br>
- * The {@code ImageTool} creates new figures by cloning a prototype
- * {@code ImageHolderFigure} object.<br>
- * Prototype: {@link ImageHolderFigure}; Client: {@link ImageTool}.
- * <hr>
- *
- * @author Werner Randelshofer
- * @version $Id$
- */
 public class ImageTool extends CreationTool {
 
     private static final long serialVersionUID = 1L;
@@ -50,16 +17,10 @@ public class ImageTool extends CreationTool {
     protected JFileChooser fileChooser;
     protected boolean useFileDialog;
 
-    /**
-     * Creates a new instance.
-     */
     public ImageTool(ImageHolderFigure prototype) {
         super(prototype);
     }
 
-    /**
-     * Creates a new instance.
-     */
     public ImageTool(ImageHolderFigure prototype, Map<AttributeKey<?>, Object> attributes) {
         super(prototype, attributes);
     }
@@ -84,53 +45,87 @@ public class ImageTool extends CreationTool {
         if (v == null) {
             return;
         }
-        final File file;
-        file = chooseImageFile(v);
+
+        // 1. Select the image file
+        File file = chooseImageFile(v);
+
+        // Assertion checks that file is not null when selected
+        assert file != null : "File selection should not be null!"; // Ensure file is selected
+
         if (file != null) {
-            final ImageHolderFigure loaderFigure = ((ImageHolderFigure) prototype.clone());
-            loadImageAsync(loaderFigure, file, v);
+            // 2. Create a new ImageHolderFigure
+            ImageHolderFigure imageHolderFigure = createdImageFigure();
+
+            // 3. Load the image asynchronously
+            loadImageAsync(imageHolderFigure, file, v);
         } else {
-            //getDrawing().remove(createdFigure);
-            if (isToolDoneAfterCreation()) {
-                fireToolDone();
-            }
+            // 4. Handle the case when no file is selected
+            handleNotFileChoosen();
         }
     }
 
+    // Method to create a new ImageHolderFigure based on the prototype
+    private ImageHolderFigure createdImageFigure() {
+        ImageHolderFigure figure = (ImageHolderFigure) prototype.clone();
+
+        // Assertion checks that figure is not null after creation
+        assert figure != null : "Created ImageHolderFigure should not be null!"; // Ensures figure creation
+
+        return figure;
+    }
+
+    // Method to handle the case where no file was chosen
+    private void handleNotFileChoosen() {
+        if (isToolDoneAfterCreation()) {
+            fireToolDone();
+        }
+    }
+
+    // Asynchronously load the image
     private void loadImageAsync(ImageHolderFigure loaderFigure, File file, DrawingView v) {
         new SwingWorker() {
             @Override
             protected Object doInBackground() throws Exception {
-                loaderFigure.loadImage(file);
+                loaderFigure.loadImage(file); // Load the image asynchronously
                 return null;
             }
 
             @Override
             protected void done() {
                 try {
-                    get();  //will throw an ExecutionException if in doInBackground something went wrong.
-                    if (createdFigure == null) {
-                        ((ImageHolderFigure) prototype).setImage(loaderFigure.getImageData(), loaderFigure.getBufferedImage());
-                    } else {
+                    get();  // Will throw an ExecutionException if something went wrong in doInBackground
+
+                    // Assertion checks that image data is loaded successfully
+                    assert loaderFigure.getImageData() != null : "Image data should not be null after loading!"; // Ensure image data is loaded
+
+                    // Assertion checks that BufferedImage is loaded successfully
+                    assert loaderFigure.getBufferedImage() != null : "BufferedImage should not be null after loading!"; // Ensure BufferedImage is loaded
+
+                    if (createdFigure != null) {
                         ((ImageHolderFigure) createdFigure).setImage(loaderFigure.getImageData(), loaderFigure.getBufferedImage());
+                    } else {
+                        ((ImageHolderFigure) prototype).setImage(loaderFigure.getImageData(), loaderFigure.getBufferedImage());
                     }
                 } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(v.getComponent(),
-                            ex.getMessage(),
-                            null,
-                            JOptionPane.ERROR_MESSAGE);
+                    handleErrors(ex, v);  // Handle the exception
                 } catch (InterruptedException | ExecutionException ex) {
-                    JOptionPane.showMessageDialog(v.getComponent(),
-                            ex.getMessage(),
-                            null,
-                            JOptionPane.ERROR_MESSAGE);
-                    getDrawing().remove(createdFigure);
-                    fireToolDone();
+                    handleErrors(ex, v);  // Handle the exception
+                    getDrawing().remove(createdFigure); // Remove the figure in case of error
+                    fireToolDone(); // Finish the tool's operation
                 }
             }
         }.execute();
     }
 
+    // Handling errors for the ImageTool
+    private void handleErrors(Exception ex, DrawingView v) {
+        JOptionPane.showMessageDialog(v.getComponent(),
+                ex.getMessage(),
+                null,
+                JOptionPane.ERROR_MESSAGE);
+    }
+
+    // Method for selecting the image file
     private File chooseImageFile(DrawingView v) {
         final File file;
         if (useFileDialog) {
@@ -150,6 +145,7 @@ public class ImageTool extends CreationTool {
         return file;
     }
 
+    // Returns JFileChooser instance if not already initialized
     private JFileChooser getFileChooser() {
         if (fileChooser == null) {
             fileChooser = new JFileChooser();
@@ -157,6 +153,7 @@ public class ImageTool extends CreationTool {
         return fileChooser;
     }
 
+    // Returns FileDialog instance if not already initialized
     private FileDialog getFileDialog() {
         if (fileDialog == null) {
             fileDialog = new FileDialog(new Frame());
@@ -164,3 +161,5 @@ public class ImageTool extends CreationTool {
         return fileDialog;
     }
 }
+
+

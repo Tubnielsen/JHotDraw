@@ -1,15 +1,14 @@
 package org.jhotdraw.draw.tool;
 
-import java.awt.geom.Point2D;
-
 import org.jhotdraw.geom.BezierPath;
 import org.junit.Test;
 
-import static org.assertj.core.api.Assertions.*;
+import java.awt.geom.Point2D;
+
+import static org.junit.Assert.*;
 
 /**
  * Unit tests for small, logic-heavy parts of {@link BezierTool}.
- * <p>
  * The UI behaviour of the tool is tested indirectly by exercising the extracted helper methods.
  */
 public class BezierToolTest {
@@ -28,20 +27,22 @@ public class BezierToolTest {
 
         BezierPath tail = BezierTool.extractTailPath(source, 2);
 
-        assertThat(source).hasSize(2);
-        assertThat(tail).hasSize(3);
-        // Order check
-        assertThat(tail.get(0).x[0]).isEqualTo(2.0);
-        assertThat(tail.get(1).x[0]).isEqualTo(3.0);
-        assertThat(tail.get(2).x[0]).isEqualTo(4.0);
+        assertEquals(2, source.size());
+        assertEquals(3, tail.size());
+
+        assertEquals(2.0, tail.get(0).x[0], 0.000001);
+        assertEquals(3.0, tail.get(1).x[0], 0.000001);
+        assertEquals(4.0, tail.get(2).x[0], 0.000001);
     }
 
     @Test
     public void extractTailPath_withStartIndexAtEnd_returnsEmptyTail() {
         BezierPath source = pathWithNNodes(3);
+
         BezierPath tail = BezierTool.extractTailPath(source, 3);
-        assertThat(source).hasSize(3);
-        assertThat(tail).isEmpty();
+
+        assertEquals(3, source.size());
+        assertTrue(tail.isEmpty());
     }
 
     @Test(expected = IllegalArgumentException.class)

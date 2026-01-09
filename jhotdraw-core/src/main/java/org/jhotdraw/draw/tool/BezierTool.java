@@ -92,6 +92,33 @@ public class BezierTool extends AbstractTool {
         this.calculateFittedCurveAfterCreation = calculateFittedCurveAfterCreation;
     }
 
+    /**
+     * Extracts a "tail" sub-path from {@code source} starting at {@code startIndex} (inclusive).
+     * <p>
+     * All nodes from {@code startIndex} to the end are removed from {@code source} and returned
+     * as a new {@link BezierPath}. This helper is intentionally kept small and deterministic
+     * so it can be unit-tested.
+     *
+     * @param source     the source path to split (must not be null)
+     * @param startIndex index of the first node to move into the returned tail; may be equal to source.size()
+     * @return a new BezierPath containing the removed nodes (may be empty)
+     * @throws IllegalArgumentException if source is null, startIndex < 0, or startIndex > source.size()
+     */
+    public static BezierPath extractTailPath(BezierPath source, int startIndex) {
+        if (source == null) {
+            throw new IllegalArgumentException("source must not be null");
+        }
+        if (startIndex < 0 || startIndex > source.size()) {
+            throw new IllegalArgumentException("startIndex out of range: " + startIndex);
+        }
+
+        BezierPath tail = new BezierPath();
+        while (source.size() > startIndex) {
+            tail.add(source.remove(startIndex));
+        }
+        return tail;
+    }
+
     public String getPresentationName() {
         return presentationName;
     }
